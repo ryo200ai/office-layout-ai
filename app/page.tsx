@@ -11,6 +11,36 @@ export default function Home() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [isDone, setIsDone] = useState(false);
   const [error, setError] = useState("");
+  const [lastFormData, setLastFormData] = useState<LayoutFormData | null>(null);
+
+  // メール送信ヘルパー
+  const sendEmail = async (
+    type: "form_submit" | "cta_click",
+    formData: LayoutFormData,
+    aiResult?: string
+  ) => {
+    try {
+      await fetch("/api/send-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type,
+          companyName: formData.companyName,
+          clientName: formData.clientName,
+          newAddress: formData.newAddress,
+          buildingName: formData.buildingName,
+          tsubo: formData.tsubo,
+          seats: formData.seats,
+          meetingRooms: formData.meetingRooms,
+          phoneBooths: formData.phoneBooths,
+          lounge: formData.lounge,
+          aiResult,
+        }),
+      });
+    } catch {
+      // メール失敗はサイレントに無視
+    }
+  };
 
   const handleSubmit = async (data: LayoutFormData) => {
     setResult("");
@@ -18,6 +48,10 @@ export default function Home() {
     setIsDone(false);
     setIsLoading(true);
     setIsStreaming(false);
+    setLastFormData(data);
+
+    // ① フォーム送信時メール（バックグラウンドで）
+    sendEmail("form_submit", data);
 
     try {
       const fd = new FormData();
@@ -51,19 +85,32 @@ export default function Home() {
       const decoder = new TextDecoder();
       if (!reader) throw new Error("ストリームの読み取りに失敗しました");
 
+      let fullText = "";
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        setResult((prev) => prev + decoder.decode(value, { stream: true }));
+        const chunk = decoder.decode(value, { stream: true });
+        fullText += chunk;
+        setResult((prev) => prev + chunk);
       }
 
       setIsStreaming(false);
       setIsDone(true);
+
+      // AI結果をlastFormDataと一緒に保存（CTAクリック時に使用）
+      setLastFormData({ ...data, _aiResult: fullText } as LayoutFormData & { _aiResult: string });
     } catch (err: unknown) {
       setIsLoading(false);
       setIsStreaming(false);
       setError(err instanceof Error ? err.message : "予期しないエラーが発生しました");
     }
+  };
+
+  // ② CTAボタン押下時メール
+  const handleCTAClick = () => {
+    if (!lastFormData) return;
+    const aiResult = (lastFormData as LayoutFormData & { _aiResult?: string })._aiResult;
+    sendEmail("cta_click", lastFormData, aiResult);
   };
 
   return (
@@ -109,7 +156,7 @@ export default function Home() {
         <ResultDisplay result={result} isStreaming={isStreaming} />
 
         {/* CTA */}
-        <CTAButton show={isDone} />
+        <CTAButton show={isDone} onCTAClick={handleCTAClick} />
       </main>
 
       {/* フッター */}

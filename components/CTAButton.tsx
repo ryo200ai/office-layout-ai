@@ -2,9 +2,10 @@
 
 type Props = {
   show: boolean;
+  onCTAClick?: () => void;
 };
 
-export default function CTAButton({ show }: Props) {
+export default function CTAButton({ show, onCTAClick }: Props) {
   if (!show) return null;
 
   const ctaUrl = process.env.NEXT_PUBLIC_CTA_URL || "#";
@@ -22,6 +23,7 @@ export default function CTAButton({ show }: Props) {
           href={ctaUrl}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={onCTAClick}
           className="inline-block w-full sm:w-auto px-8 py-4 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-bold text-base shadow-lg hover:from-blue-400 hover:to-cyan-400 transition-all transform hover:scale-[1.02] active:scale-[0.98]"
         >
           無料で詳細提案を依頼する →
