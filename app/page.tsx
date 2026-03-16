@@ -81,6 +81,7 @@ export default function Home() {
   const [error, setError] = useState("");
   const [lastFormData, setLastFormData] = useState<LayoutFormData | null>(null);
   const [isDemoMode, setIsDemoMode] = useState(false);
+  const [floorPlanPreview, setFloorPlanPreview] = useState<string | null>(null);
 
   // メール送信ヘルパー
   const sendEmail = async (
@@ -143,6 +144,19 @@ export default function Home() {
     setIsStreaming(false);
     setIsDemoMode(false);
     setLastFormData(data);
+
+    // 図面プレビューを保存
+    if (data.floorPlanImage) {
+      if (data.floorPlanImage.type.startsWith("image/")) {
+        const reader = new FileReader();
+        reader.onload = (e) => setFloorPlanPreview(e.target?.result as string);
+        reader.readAsDataURL(data.floorPlanImage);
+      } else {
+        setFloorPlanPreview("pdf");
+      }
+    } else {
+      setFloorPlanPreview(null);
+    }
 
     // ① フォーム送信時メール（バックグラウンドで）
     sendEmail("form_submit", data);
@@ -265,7 +279,7 @@ export default function Home() {
                 </span>
               </div>
             )}
-            <ResultDisplay result={result} isStreaming={isStreaming} />
+            <ResultDisplay result={result} isStreaming={isStreaming} floorPlanPreview={floorPlanPreview} />
           </>
         ) : null}
 
