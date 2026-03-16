@@ -29,6 +29,7 @@ export default function Home() {
       fd.append("seats", data.seats);
       fd.append("meetingRooms", JSON.stringify(data.meetingRooms));
       fd.append("phoneBooths", data.phoneBooths);
+      fd.append("lounge", String(data.lounge));
       if (data.floorPlanImage) {
         fd.append("floorPlanImage", data.floorPlanImage);
       }

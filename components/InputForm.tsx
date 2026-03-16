@@ -16,6 +16,7 @@ export type LayoutFormData = {
   seats: string;
   meetingRooms: MeetingRoom[];
   phoneBooths: string;
+  lounge: boolean;
   floorPlanImage?: File;
 };
 
@@ -34,6 +35,7 @@ export default function InputForm({ onSubmit, isLoading }: Props) {
     seats: "",
     meetingRooms: [{ id: "1", capacity: "" }],
     phoneBooths: "",
+    lounge: false,
     floorPlanImage: undefined,
   });
   const [preview, setPreview] = useState<string | null>(null);
@@ -259,6 +261,28 @@ export default function InputForm({ onSubmit, isLoading }: Props) {
           スペース要件
         </p>
 
+        {/* ラウンジ */}
+        <div>
+          <label className={labelClass}>ラウンジ</label>
+          <button
+            type="button"
+            onClick={() => setForm((prev) => ({ ...prev, lounge: !prev.lounge }))}
+            className={`w-full flex items-center justify-between px-4 py-3 rounded-lg border transition text-sm font-medium ${
+              form.lounge
+                ? "bg-blue-500/20 border-blue-400/60 text-blue-200"
+                : "bg-white/10 border-white/20 text-gray-300 hover:bg-white/15"
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <span className="text-lg">{form.lounge ? "🛋️" : "🪑"}</span>
+              <span>{form.lounge ? "ラウンジあり" : "ラウンジなし"}</span>
+            </span>
+            <div className={`relative w-11 h-6 rounded-full transition-colors ${form.lounge ? "bg-blue-500" : "bg-white/20"}`}>
+              <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${form.lounge ? "translate-x-5" : "translate-x-0.5"}`} />
+            </div>
+          </button>
+        </div>
+
         {/* 席数 */}
         <div>
           <label className={labelClass}>
@@ -343,6 +367,7 @@ export default function InputForm({ onSubmit, isLoading }: Props) {
             </span>
           </div>
         </div>
+
       </div>
 
       {/* 送信ボタン */}

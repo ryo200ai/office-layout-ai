@@ -18,6 +18,7 @@ export async function POST(request: Request) {
     const seats = formData.get("seats") as string;
     const meetingRoomsJson = formData.get("meetingRooms") as string;
     const phoneBooths = formData.get("phoneBooths") as string;
+    const lounge = formData.get("lounge") === "true";
     const floorPlanFile = formData.get("floorPlanImage") as File | null;
 
     if (!tsubo || !companyName || !clientName || !seats) {
@@ -52,6 +53,7 @@ ${buildingName ? `- ビル名：${buildingName}` : ""}
 - 面積：${tsubo}坪（約${sqm}㎡）
 - 席数：${seats}席
 - 会議室：${meetingRoomsSummary}
+- ラウンジ：${lounge ? "必要" : "不要"}
 - テレフォンブース：${phoneBooths || "0"}ブース
 ${floorPlanFile ? "\n※添付の図面をもとに、具体的なゾーニング・レイアウトを提案してください。" : ""}
 
