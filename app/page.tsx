@@ -122,6 +122,7 @@ export default function Home() {
     setIsDemoMode(true);
 
     await new Promise((r) => setTimeout(r, 800));
+    setFloorPlanPreview("/sample-floor-plan.svg");
     setIsLoading(false);
     setIsStreaming(true);
 
