@@ -90,14 +90,16 @@ const DEMO_TEXT = `## 1. 物件評価サマリー
 
 ご不明な点はいつでもお気軽にご相談ください。`;
 
-// デモ用ゾーン
+// デモ用ゾーン（sample-floor-plan.svg の実座標に合わせた正確な配置）
+// SVG viewBox: 800×560 → 各部屋の rect を % に変換
 const DEMO_ZONES: Zone[] = [
-  { label: "執務スペース（30席）", x: 5, y: 5, w: 55, h: 58, color: "#3B82F6" },
-  { label: "会議室A（8名）", x: 63, y: 5, w: 32, h: 28, color: "#10B981" },
-  { label: "会議室B（4名）", x: 63, y: 36, w: 32, h: 20, color: "#10B981" },
-  { label: "ラウンジ", x: 5, y: 66, w: 40, h: 28, color: "#F59E0B" },
-  { label: "テレフォンブース", x: 48, y: 66, w: 20, h: 28, color: "#8B5CF6" },
-  { label: "エントランス・通路", x: 71, y: 58, w: 24, h: 36, color: "#6B7280" },
+  { label: "ラウンジ",             x: 2.5,  y: 3.6,  w: 27.5, h: 35.7, color: "#F59E0B" },
+  { label: "会議室A（8名）",       x: 30,   y: 3.6,  w: 25,   h: 28.6, color: "#10B981" },
+  { label: "会議室B（4名）",       x: 55,   y: 3.6,  w: 20,   h: 28.6, color: "#10B981" },
+  { label: "テレフォンブース×2",   x: 75,   y: 3.6,  w: 20,   h: 14.3, color: "#8B5CF6" },
+  { label: "執務スペース（30席）", x: 30,   y: 32.1, w: 67.5, h: 64.3, color: "#3B82F6" },
+  { label: "エントランス",         x: 2.5,  y: 71.4, w: 20,   h: 25,   color: "#6B7280" },
+  { label: "収納・サーバー",       x: 77.5, y: 78.6, w: 20,   h: 17.9, color: "#9CA3AF" },
 ];
 
 export default function Home() {

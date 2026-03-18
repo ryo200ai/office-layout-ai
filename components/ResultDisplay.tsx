@@ -160,31 +160,57 @@ export default function ResultDisplay({ result, isStreaming, floorPlanPreview, z
   );
 }
 
-// 画像サイズを取得してからSVGを重ねるサブコンポーネント
+// objectFit:contain の実際のレンダリング位置を計算してオーバーレイを正確に重ねる
 function FloorPlanWithOverlay({ src, zones }: { src: string; zones: Zone[] }) {
-  const [size, setSize] = useState({ w: 800, h: 600 });
+  const [natural, setNatural] = useState({ w: 800, h: 560 });
+  const [overlay, setOverlay] = useState({ left: 0, top: 0, w: 0, h: 0 });
   const imgRef = useRef<HTMLImageElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const calcOverlay = () => {
+    const img = imgRef.current;
+    const container = containerRef.current;
+    if (!img || !container || !img.naturalWidth) return;
+
+    const natW = img.naturalWidth;
+    const natH = img.naturalHeight;
+    const contW = container.clientWidth;
+    const contH = container.clientHeight;
+
+    // objectFit: contain の実サイズ計算
+    const scale = Math.min(contW / natW, contH / natH);
+    const rendW = natW * scale;
+    const rendH = natH * scale;
+    const left = (contW - rendW) / 2;
+    const top = (contH - rendH) / 2;
+
+    setNatural({ w: natW, h: natH });
+    setOverlay({ left, top, w: rendW, h: rendH });
+  };
 
   useEffect(() => {
     const img = imgRef.current;
     if (!img) return;
-    const update = () => setSize({ w: img.naturalWidth || 800, h: img.naturalHeight || 600 });
-    if (img.complete) update();
-    else img.addEventListener("load", update);
-    return () => img.removeEventListener("load", update);
+    if (img.complete && img.naturalWidth) calcOverlay();
+    img.addEventListener("load", calcOverlay);
+    window.addEventListener("resize", calcOverlay);
+    return () => {
+      img.removeEventListener("load", calcOverlay);
+      window.removeEventListener("resize", calcOverlay);
+    };
   }, [src]);
 
   return (
-    <div style={{ position: "relative" }}>
+    <div ref={containerRef} style={{ position: "relative", display: "flex", justifyContent: "center", alignItems: "center", maxHeight: "22rem", overflow: "hidden" }}>
       <img
         ref={imgRef}
         src={src}
         alt="アップロード図面"
         style={{ width: "100%", objectFit: "contain", maxHeight: "22rem", display: "block" }}
       />
-      {zones.length > 0 && (
-        <div style={{ position: "absolute", inset: 0 }}>
-          <ZoneOverlay zones={zones} imageWidth={size.w} imageHeight={size.h} />
+      {zones.length > 0 && overlay.w > 0 && (
+        <div style={{ position: "absolute", left: overlay.left, top: overlay.top, width: overlay.w, height: overlay.h, pointerEvents: "none" }}>
+          <ZoneOverlay zones={zones} imageWidth={natural.w} imageHeight={natural.h} />
         </div>
       )}
     </div>
