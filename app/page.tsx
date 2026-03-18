@@ -4,6 +4,23 @@ import { useState } from "react";
 import InputForm, { LayoutFormData } from "@/components/InputForm";
 import ResultDisplay from "@/components/ResultDisplay";
 import CTAButton from "@/components/CTAButton";
+import { Zone } from "@/components/ZoneOverlay";
+
+// ストリームバッファからゾーンJSONを抽出するユーティリティ
+function extractZones(buffer: string): { zones: Zone[]; rest: string } {
+  const start = buffer.indexOf("[[ZONES:");
+  const end = buffer.indexOf("]]", start);
+  if (start === -1 || end === -1) return { zones: [], rest: buffer };
+  try {
+    const jsonStr = buffer.slice(start + 8, end);
+    const parsed = JSON.parse(jsonStr);
+    const zones: Zone[] = parsed.zones || [];
+    const rest = buffer.slice(end + 2).replace(/^\n/, "");
+    return { zones, rest };
+  } catch {
+    return { zones: [], rest: buffer };
+  }
+}
 
 const DEMO_TEXT = `## 1. 物件評価サマリー
 
@@ -73,6 +90,16 @@ const DEMO_TEXT = `## 1. 物件評価サマリー
 
 ご不明な点はいつでもお気軽にご相談ください。`;
 
+// デモ用ゾーン
+const DEMO_ZONES: Zone[] = [
+  { label: "執務スペース（30席）", x: 5, y: 5, w: 55, h: 58, color: "#3B82F6" },
+  { label: "会議室A（8名）", x: 63, y: 5, w: 32, h: 28, color: "#10B981" },
+  { label: "会議室B（4名）", x: 63, y: 36, w: 32, h: 20, color: "#10B981" },
+  { label: "ラウンジ", x: 5, y: 66, w: 40, h: 28, color: "#F59E0B" },
+  { label: "テレフォンブース", x: 48, y: 66, w: 20, h: 28, color: "#8B5CF6" },
+  { label: "エントランス・通路", x: 71, y: 58, w: 24, h: 36, color: "#6B7280" },
+];
+
 export default function Home() {
   const [result, setResult] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -82,8 +109,8 @@ export default function Home() {
   const [lastFormData, setLastFormData] = useState<LayoutFormData | null>(null);
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [floorPlanPreview, setFloorPlanPreview] = useState<string | null>(null);
+  const [zones, setZones] = useState<Zone[]>([]);
 
-  // メール送信ヘルパー
   const sendEmail = async (
     type: "form_submit" | "cta_click",
     formData: LayoutFormData,
@@ -108,11 +135,10 @@ export default function Home() {
         }),
       });
     } catch {
-      // メール失敗はサイレントに無視
+      // silent
     }
   };
 
-  // デモ表示（タイプライター風）
   const handleDemo = async () => {
     setResult("");
     setError("");
@@ -120,16 +146,17 @@ export default function Home() {
     setIsLoading(true);
     setIsStreaming(false);
     setIsDemoMode(true);
+    setZones([]);
 
     await new Promise((r) => setTimeout(r, 800));
     setFloorPlanPreview("/sample-floor-plan.svg");
+    setZones(DEMO_ZONES);
     setIsLoading(false);
     setIsStreaming(true);
 
     const chunkSize = 8;
     for (let i = 0; i < DEMO_TEXT.length; i += chunkSize) {
-      const chunk = DEMO_TEXT.slice(i, i + chunkSize);
-      setResult((prev) => prev + chunk);
+      setResult((prev) => prev + DEMO_TEXT.slice(i, i + chunkSize));
       await new Promise((r) => setTimeout(r, 18));
     }
 
@@ -145,8 +172,8 @@ export default function Home() {
     setIsStreaming(false);
     setIsDemoMode(false);
     setLastFormData(data);
+    setZones([]);
 
-    // 図面プレビューを保存
     if (data.floorPlanImage) {
       if (data.floorPlanImage.type.startsWith("image/")) {
         const reader = new FileReader();
@@ -159,7 +186,6 @@ export default function Home() {
       setFloorPlanPreview(null);
     }
 
-    // ① フォーム送信時メール（バックグラウンドで）
     sendEmail("form_submit", data);
 
     try {
@@ -173,14 +199,9 @@ export default function Home() {
       fd.append("meetingRooms", JSON.stringify(data.meetingRooms));
       fd.append("phoneBooths", data.phoneBooths);
       fd.append("lounge", String(data.lounge));
-      if (data.floorPlanImage) {
-        fd.append("floorPlanImage", data.floorPlanImage);
-      }
+      if (data.floorPlanImage) fd.append("floorPlanImage", data.floorPlanImage);
 
-      const response = await fetch("/api/layout", {
-        method: "POST",
-        body: fd,
-      });
+      const response = await fetch("/api/layout", { method: "POST", body: fd });
 
       if (!response.ok) {
         const err = await response.json();
@@ -194,13 +215,37 @@ export default function Home() {
       const decoder = new TextDecoder();
       if (!reader) throw new Error("ストリームの読み取りに失敗しました");
 
+      let buffer = "";
+      let zonesExtracted = false;
       let fullText = "";
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         const chunk = decoder.decode(value, { stream: true });
-        fullText += chunk;
-        setResult((prev) => prev + chunk);
+
+        if (!zonesExtracted) {
+          buffer += chunk;
+          // ゾーンJSONの終端を待つ
+          if (buffer.includes("]]")) {
+            const { zones: parsedZones, rest } = extractZones(buffer);
+            if (parsedZones.length > 0) {
+              setZones(parsedZones);
+            }
+            zonesExtracted = true;
+            fullText += rest;
+            setResult(rest);
+          }
+          // JSONが長すぎる場合はそのまま流す
+          else if (buffer.length > 2000) {
+            zonesExtracted = true;
+            fullText += buffer;
+            setResult(buffer);
+          }
+        } else {
+          fullText += chunk;
+          setResult((prev) => prev + chunk);
+        }
       }
 
       setIsStreaming(false);
@@ -213,7 +258,6 @@ export default function Home() {
     }
   };
 
-  // ② CTAボタン押下時メール
   const handleCTAClick = () => {
     if (!lastFormData) return;
     const aiResult = (lastFormData as LayoutFormData & { _aiResult?: string })._aiResult;
@@ -221,76 +265,113 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: "#1a3a5c" }}>
+    <div className="min-h-screen" style={{ backgroundColor: "#111E3A" }}>
 
       {/* ヘッダー */}
-      <header className="border-b border-white/10 bg-black/20 backdrop-blur-sm sticky top-0 z-10">
+      <header
+        className="sticky top-0 z-10 border-b"
+        style={{
+          backgroundColor: "#1A2D55",
+          borderColor: "rgba(199,162,61,0.3)",
+          boxShadow: "0 2px 20px rgba(0,0,0,0.4)",
+        }}
+      >
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-black text-sm shadow-lg"
-              style={{ background: "linear-gradient(135deg, #2563eb, #1d4ed8)" }}
+              className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-xs shadow-lg flex-shrink-0"
+              style={{
+                background: "linear-gradient(135deg, #C7A23D, #A8862E)",
+                color: "#1A2D55",
+                fontFamily: "Inter, sans-serif",
+                letterSpacing: "0.05em",
+              }}
             >
               AI
             </div>
             <div>
-              <h1 className="text-white font-bold text-sm leading-none tracking-tight">
-                オフィスレイアウトAI診断
+              <h1 className="font-bold text-sm leading-none" style={{ color: "#F0EDE6", letterSpacing: "0.05em" }}>
+                オフィスレイアウト AI 診断
               </h1>
-              <p className="text-gray-400 text-xs mt-0.5">
-                図面をアップロードしてレイアウト提案書を即生成
+              <p className="text-xs mt-0.5" style={{ color: "#C7A23D", opacity: 0.9 }}>
+                図面をアップ → AIが即座に提案書を作成 → 商談をその場でクロージングへ
               </p>
             </div>
           </div>
-          {/* デモボタン */}
           <button
             onClick={handleDemo}
             disabled={isLoading || isStreaming}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-yellow-400/20 border border-yellow-400/40 text-yellow-300 text-xs font-semibold hover:bg-yellow-400/30 transition disabled:opacity-40"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition disabled:opacity-40"
+            style={{
+              backgroundColor: "rgba(199,162,61,0.15)",
+              border: "1px solid rgba(199,162,61,0.5)",
+              color: "#C7A23D",
+            }}
           >
             <span>▶</span> デモを見る
           </button>
         </div>
       </header>
 
-      {/* メインコンテンツ */}
-      <main className="max-w-2xl mx-auto px-4 py-6 pb-20">
+      {/* メイン */}
+      <main className="max-w-2xl mx-auto px-4 py-6 pb-24">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="h-px flex-1" style={{ backgroundColor: "rgba(199,162,61,0.3)" }} />
+          <span className="text-xs tracking-widest" style={{ color: "#C7A23D" }}>LAYOUT DIAGNOSIS</span>
+          <div className="h-px flex-1" style={{ backgroundColor: "rgba(199,162,61,0.3)" }} />
+        </div>
 
-        {/* カード */}
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-5 mb-6">
+        <div
+          className="rounded-2xl p-5 mb-6"
+          style={{
+            backgroundColor: "rgba(26,45,85,0.6)",
+            border: "1px solid rgba(199,162,61,0.25)",
+            boxShadow: "0 4px 30px rgba(0,0,0,0.3)",
+          }}
+        >
           <InputForm onSubmit={handleSubmit} isLoading={isLoading} />
         </div>
 
-        {/* エラー */}
         {error && (
-          <div className="mb-4 p-4 rounded-xl bg-red-500/20 border border-red-400/30 text-red-300 text-sm flex gap-2">
-            <span>⚠️</span>
-            <span>{error}</span>
+          <div
+            className="mb-4 p-4 rounded-xl text-sm flex gap-2"
+            style={{
+              backgroundColor: "rgba(220,38,38,0.15)",
+              border: "1px solid rgba(220,38,38,0.3)",
+              color: "#FCA5A5",
+            }}
+          >
+            <span>⚠️</span><span>{error}</span>
           </div>
         )}
 
-        {/* 結果 */}
-        {result || isStreaming ? (
+        {(result || isStreaming) && (
           <>
             {isDemoMode && (
-              <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-400/10 border border-yellow-400/30">
-                <span className="text-yellow-300 text-xs">🎬</span>
-                <span className="text-yellow-300 text-xs font-semibold">
+              <div
+                className="mb-3 flex items-center gap-2 px-3 py-2 rounded-lg"
+                style={{ backgroundColor: "rgba(199,162,61,0.1)", border: "1px solid rgba(199,162,61,0.3)" }}
+              >
+                <span className="text-xs" style={{ color: "#C7A23D" }}>🎬</span>
+                <span className="text-xs font-semibold" style={{ color: "#C7A23D" }}>
                   これはデモ表示です。実際はAIが物件情報をもとにリアルタイム生成します。
                 </span>
               </div>
             )}
-            <ResultDisplay result={result} isStreaming={isStreaming} floorPlanPreview={floorPlanPreview} />
+            <ResultDisplay
+              result={result}
+              isStreaming={isStreaming}
+              floorPlanPreview={floorPlanPreview}
+              zones={zones}
+            />
           </>
-        ) : null}
+        )}
 
-        {/* CTA */}
         <CTAButton show={isDone} onCTAClick={handleCTAClick} />
       </main>
 
-      {/* フッター */}
-      <footer className="border-t border-white/10 py-4 text-center">
-        <p className="text-gray-600 text-xs">
+      <footer className="border-t py-4 text-center" style={{ borderColor: "rgba(199,162,61,0.2)" }}>
+        <p className="text-xs" style={{ color: "rgba(199,162,61,0.4)" }}>
           Powered by Claude AI · 生成内容はAIによる参考情報です
         </p>
       </footer>

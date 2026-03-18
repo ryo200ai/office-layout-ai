@@ -3,19 +3,37 @@
 @tailwind utilities;
 
 :root {
-  --background: #1a3a5c;
-  --foreground: #f0f4f8;
+  --navy: #1A2D55;
+  --navy-light: #223567;
+  --navy-dark: #111E3A;
+  --gold: #C7A23D;
+  --gold-light: #D4B55A;
+  --gold-dark: #A8862E;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: "Noto Sans JP", "Hiragino Sans", "Yu Gothic", Arial, sans-serif;
+  color: #F0EDE6;
+  background: var(--navy-dark);
+  font-family: "Noto Serif JP", "Yu Mincho", "YuMincho", "Hiragino Mincho ProN", Georgia, serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/* 数字・英字はサンセリフ */
+input[type="number"],
+input[type="text"],
+.font-sans-num {
+  font-family: "Inter", "Helvetica Neue", Arial, sans-serif;
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+  .gold-gradient {
+    background: linear-gradient(135deg, #C7A23D, #D4B55A, #A8862E);
+  }
+  .navy-card {
+    background: rgba(34, 53, 103, 0.5);
+    border: 1px solid rgba(199, 162, 61, 0.2);
   }
 }

@@ -28,10 +28,7 @@ export async function POST(request: Request) {
       });
     }
 
-    const meetingRooms = JSON.parse(meetingRoomsJson || "[]") as {
-      id: string;
-      capacity: string;
-    }[];
+    const meetingRooms = JSON.parse(meetingRoomsJson || "[]") as { id: string; capacity: string }[];
     const filledRooms = meetingRooms.filter((r) => r.capacity);
     const meetingRoomsSummary =
       filledRooms.length > 0
@@ -40,7 +37,23 @@ export async function POST(request: Request) {
 
     const sqm = Math.round(Number(tsubo) * 3.31);
 
-    const prompt = `あなたは経験豊富なオフィスデザイン・レイアウトの専門家です。
+    const zonesInstruction = `【重要】回答の冒頭に必ず以下の形式でゾーニングJSONを出力してください（テキストの前に）：
+
+[[ZONES:{"zones":[
+  {"label":"執務スペース","x":5,"y":10,"w":55,"h":60,"color":"#3B82F6"},
+  {"label":"会議室","x":63,"y":10,"w":32,"h":35,"color":"#10B981"},
+  {"label":"ラウンジ","x":63,"y":50,"w":32,"h":25,"color":"#F59E0B"},
+  {"label":"エントランス","x":5,"y":75,"w":90,"h":20,"color":"#6B7280"}
+]}]]
+
+このJSONの数値（x,y,w,h）は図面全体を100×100として%で指定します。
+実際のスペース要件（${tsubo}坪、${seats}席、会議室${meetingRoomsSummary}、ラウンジ${lounge ? "あり" : "なし"}、ブース${phoneBooths || 0}基）に合わせてゾーンを調整してください。
+ゾーンは重ならないようにし、合計面積が${tsubo}坪になるよう配分してください。
+JSONブロックの後に改行を入れて、通常の提案書テキストを続けてください。`;
+
+    const prompt = `${zonesInstruction}
+
+あなたは経験豊富なオフィスデザイン・レイアウトの専門家です。
 以下の情報をもとに、不動産仲介担当者が${clientName}に提案できる「オフィスレイアウト提案書」を日本語で作成してください。
 
 【物件・クライアント情報】
@@ -79,17 +92,9 @@ ${clientName}が次にとるべき具体的な行動の提案
 
 実用的かつ具体的な数値を含め、クライアントへの説明資料として即使えるクオリティで作成してください。`;
 
-    // メッセージコンテンツを構築（画像がある場合はvisionを利用）
     type ContentBlock =
       | { type: "text"; text: string }
-      | {
-          type: "image";
-          source: {
-            type: "base64";
-            media_type: ValidMediaType;
-            data: string;
-          };
-        };
+      | { type: "image"; source: { type: "base64"; media_type: ValidMediaType; data: string } };
 
     const content: ContentBlock[] = [];
 
@@ -97,17 +102,14 @@ ${clientName}が次にとるべき具体的な行動の提案
       const buf = await floorPlanFile.arrayBuffer();
       const base64 = Buffer.from(buf).toString("base64");
       const mediaType = (floorPlanFile.type || "image/jpeg") as ValidMediaType;
-      content.push({
-        type: "image",
-        source: { type: "base64", media_type: mediaType, data: base64 },
-      });
+      content.push({ type: "image", source: { type: "base64", media_type: mediaType, data: base64 } });
     }
 
     content.push({ type: "text", text: prompt });
 
     const stream = await client.messages.create({
       model: "claude-opus-4-5",
-      max_tokens: 2500,
+      max_tokens: 3000,
       stream: true,
       messages: [{ role: "user", content }],
     });
@@ -117,10 +119,7 @@ ${clientName}が次にとるべき具体的な行動の提案
       async start(controller) {
         try {
           for await (const event of stream) {
-            if (
-              event.type === "content_block_delta" &&
-              event.delta.type === "text_delta"
-            ) {
+            if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
               controller.enqueue(encoder.encode(event.delta.text));
             }
           }
